@@ -12,24 +12,39 @@ import (
 func main() {
 	_ = godotenv.Load()
 
-	apiKey := os.Getenv("GEMINI_API_KEY")
-	if apiKey == "" {
-		fmt.Fprintln(os.Stderr, "Please set GEMINI_API_KEY environment variable.")
+	// -----------------------------------------------------------------------
+	// 1. 初始化 Provider（通过 MODEL_PROVIDER 环境变量选择，默认 gemini-2.5-flash）
+	// -----------------------------------------------------------------------
+
+	providerName := os.Getenv("MODEL_PROVIDER")
+	if providerName == "" {
+		providerName = "gemini-2.5-flash"
+	}
+
+	provider, err := CreateProvider(providerName)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to create provider %q: %v\n", providerName, err)
 		os.Exit(1)
 	}
 
-	client := NewGeminiClient(apiKey, "gemini-2.5-flash")
-
+	// -----------------------------------------------------------------------
+	// 2. 加载 System Prompt
+	// -----------------------------------------------------------------------
 	// 切换提示词风格：修改这里的参数即可
 	// 可选: personal-assistant | sarcastic-friend | coding-mentor | anime-girl | strict-engineer
+
 	systemPrompt, err := GetSystemPrompt("personal-assistant")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to load system prompt: %v\n", err)
 		os.Exit(1)
 	}
 
+	// -----------------------------------------------------------------------
+	// 3. REPL 交互循环
+	// -----------------------------------------------------------------------
+
 	scanner := bufio.NewScanner(os.Stdin)
-	fmt.Println("Gemini Chat (type '/exit' to quit)\n")
+	fmt.Printf("Chat [%s] (type '/exit' to quit, '/model <provider>' to switch)\n\n", provider.Name())
 
 	for {
 		fmt.Print("You: ")
@@ -37,21 +52,38 @@ func main() {
 			break
 		}
 		input := scanner.Text()
+		trimmed := strings.TrimSpace(input)
 
-		if strings.TrimSpace(strings.ToLower(input)) == "/exit" {
+		// --- 退出 ---
+		if strings.ToLower(trimmed) == "/exit" {
 			break
 		}
 
-		if strings.TrimSpace(input) == "" {
+		// --- 空行跳过 ---
+		if trimmed == "" {
 			continue
 		}
 
-		reply, err := client.SendMessage(input, systemPrompt)
+		// --- /model <provider> 运行时切换 ---
+		if strings.HasPrefix(strings.ToLower(trimmed), "/model ") {
+			name := strings.TrimSpace(trimmed[7:])
+			newProvider, err := CreateProvider(name)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "\nError: %v\n\n", err)
+				continue
+			}
+			provider = newProvider
+			fmt.Printf("\nSwitched to provider: %s\n\n", provider.Name())
+			continue
+		}
+
+		// --- 正常对话 ---
+		reply, err := provider.SendMessage(input, systemPrompt)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "\nError: %v\n\n", err)
 			continue
 		}
 
-		fmt.Printf("\nGemini: %s\n\n", reply)
+		fmt.Printf("\n%s: %s\n\n", provider.Name(), reply)
 	}
 }

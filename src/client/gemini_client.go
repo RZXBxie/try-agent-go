@@ -1,4 +1,4 @@
-package main
+package client
 
 import (
 	"bytes"
@@ -7,6 +7,10 @@ import (
 	"io"
 	"net/http"
 )
+
+// ===========================================================================
+// Gemini 请求/响应类型
+// ===========================================================================
 
 type Part struct {
 	Text string `json:"text"`
@@ -32,6 +36,10 @@ type GeminiResponse struct {
 	} `json:"candidates"`
 }
 
+// ===========================================================================
+// GeminiClient
+// ===========================================================================
+
 type GeminiClient struct {
 	apiKey string
 	model  string
@@ -44,7 +52,16 @@ func NewGeminiClient(apiKey, model string) *GeminiClient {
 	}
 }
 
+// ---------------------------------------------------------------------------
+// Provider 接口实现
+// ---------------------------------------------------------------------------
+
+func (c *GeminiClient) Name() string {
+	return "gemini"
+}
+
 func (c *GeminiClient) SendMessage(text string, systemInstruction string) (string, error) {
+	// 1. 构造请求体
 	body := GeminiRequest{
 		Contents: []Content{
 			{Role: "user", Parts: []Part{{Text: text}}},
@@ -57,6 +74,7 @@ func (c *GeminiClient) SendMessage(text string, systemInstruction string) (strin
 		return "", fmt.Errorf("failed to marshal request: %w", err)
 	}
 
+	// 2. 发送 HTTP 请求
 	url := fmt.Sprintf(
 		"https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s",
 		c.model, c.apiKey,
@@ -68,6 +86,7 @@ func (c *GeminiClient) SendMessage(text string, systemInstruction string) (strin
 	}
 	defer resp.Body.Close()
 
+	// 3. 读取 & 解析响应
 	respBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", fmt.Errorf("failed to read response: %w", err)
