@@ -12,7 +12,7 @@ import (
 
 // Provider defines a common interface for all LLM backends.
 type Provider interface {
-	SendMessage(text string, systemInstruction string) (string, error)
+	SendMessage(history []client.Message, systemInstruction string) (string, error)
 	Name() string
 }
 

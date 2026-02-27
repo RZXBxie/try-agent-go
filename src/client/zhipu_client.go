@@ -33,11 +33,17 @@ func (c *ZhiPuClient) Name() string {
 	return "zhipu"
 }
 
-func (c *ZhiPuClient) SendMessage(text string, systemInstruction string) (string, error) {
-	// 1. 构造请求体
+func (c *ZhiPuClient) SendMessage(history []Message, systemInstruction string) (string, error) {
+	// 1. 构造请求体：system prompt + 完整对话历史
 	messages := []ChatMessage{
 		{Role: "system", Content: systemInstruction},
-		{Role: "user", Content: text},
+	}
+	for _, m := range history {
+		role := m.Role
+		if role == "model" {
+			role = "assistant"
+		}
+		messages = append(messages, ChatMessage{Role: role, Content: m.Content})
 	}
 
 	reqBody := ChatCompletionRequest{

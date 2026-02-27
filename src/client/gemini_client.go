@@ -60,12 +60,18 @@ func (c *GeminiClient) Name() string {
 	return "gemini"
 }
 
-func (c *GeminiClient) SendMessage(text string, systemInstruction string) (string, error) {
-	// 1. 构造请求体
+func (c *GeminiClient) SendMessage(history []Message, systemInstruction string) (string, error) {
+	// 1. 构造请求体：将对话历史转换为 Gemini 格式
+	var contents []Content
+	for _, m := range history {
+		contents = append(contents, Content{
+			Role:  m.Role,
+			Parts: []Part{{Text: m.Content}},
+		})
+	}
+
 	body := GeminiRequest{
-		Contents: []Content{
-			{Role: "user", Parts: []Part{{Text: text}}},
-		},
+		Contents: contents,
 	}
 	body.SystemInstruction.Parts = []Part{{Text: systemInstruction}}
 

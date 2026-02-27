@@ -9,6 +9,16 @@ import (
 )
 
 // ===========================================================================
+// 通用消息类型（所有 Provider 共用）
+// ===========================================================================
+
+// Message represents a single message in the conversation history.
+type Message struct {
+	Role    string // "user" or "model"
+	Content string
+}
+
+// ===========================================================================
 // OpenAI 兼容的共享类型（DeepSeek / ZhiPu 共用）
 // ===========================================================================
 
@@ -52,11 +62,17 @@ func (c *DeepSeekClient) Name() string {
 	return "deepseek"
 }
 
-func (c *DeepSeekClient) SendMessage(text string, systemInstruction string) (string, error) {
-	// 1. 构造请求体
+func (c *DeepSeekClient) SendMessage(history []Message, systemInstruction string) (string, error) {
+	// 1. 构造请求体：system prompt + 完整对话历史
 	messages := []ChatMessage{
 		{Role: "system", Content: systemInstruction},
-		{Role: "user", Content: text},
+	}
+	for _, m := range history {
+		role := m.Role
+		if role == "model" {
+			role = "assistant"
+		}
+		messages = append(messages, ChatMessage{Role: role, Content: m.Content})
 	}
 
 	reqBody := ChatCompletionRequest{

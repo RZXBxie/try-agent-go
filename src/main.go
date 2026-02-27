@@ -40,7 +40,13 @@ func main() {
 	}
 
 	// -----------------------------------------------------------------------
-	// 3. REPL 交互循环
+	// 3. 创建 Chat（维护对话历史）
+	// -----------------------------------------------------------------------
+
+	chat := NewChat(provider, systemPrompt)
+
+	// -----------------------------------------------------------------------
+	// 4. REPL 交互循环
 	// -----------------------------------------------------------------------
 
 	scanner := bufio.NewScanner(os.Stdin)
@@ -64,7 +70,7 @@ func main() {
 			continue
 		}
 
-		// --- /model <provider> 运行时切换 ---
+		// --- /model <provider> 运行时切换（历史重置） ---
 		if strings.HasPrefix(strings.ToLower(trimmed), "/model ") {
 			name := strings.TrimSpace(trimmed[7:])
 			newProvider, err := CreateProvider(name)
@@ -73,12 +79,13 @@ func main() {
 				continue
 			}
 			provider = newProvider
+			chat = NewChat(provider, systemPrompt)
 			fmt.Printf("\nSwitched to provider: %s\n\n", provider.Name())
 			continue
 		}
 
-		// --- 正常对话 ---
-		reply, err := provider.SendMessage(input, systemPrompt)
+		// --- 正常对话（通过 Chat 发送，自动维护历史） ---
+		reply, err := chat.Send(input)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "\nError: %v\n\n", err)
 			continue
