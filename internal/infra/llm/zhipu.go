@@ -1,4 +1,4 @@
-package client
+package llm
 
 import (
 	"bytes"
@@ -6,48 +6,40 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+
+	"try_agent_go/internal/domain"
 )
 
-// ===========================================================================
-// ZhiPuClient — 智谱 GLM 系列
-// ===========================================================================
-// 复用 deepseek_client.go 中的 ChatMessage / ChatCompletionRequest / ChatCompletionResponse
-
-type ZhiPuClient struct {
+type ZhiPuProvider struct {
 	apiKey string
 	model  string
 }
 
-func NewZhiPuClient(apiKey string) *ZhiPuClient {
-	return &ZhiPuClient{
+func NewZhiPuProvider(apiKey string) *ZhiPuProvider {
+	return &ZhiPuProvider{
 		apiKey: apiKey,
 		model:  "glm-4-flash",
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Provider 接口实现
-// ---------------------------------------------------------------------------
-
-func (c *ZhiPuClient) Name() string {
+func (p *ZhiPuProvider) Name() string {
 	return "zhipu"
 }
 
-func (c *ZhiPuClient) SendMessage(history []Message, systemInstruction string) (string, error) {
-	// 1. 构造请求体：system prompt + 完整对话历史
-	messages := []ChatMessage{
+func (p *ZhiPuProvider) SendMessage(history []domain.Message, systemInstruction string) (string, error) {
+	messages := []chatMessage{
 		{Role: "system", Content: systemInstruction},
 	}
 	for _, m := range history {
 		role := m.Role
-		if role == "model" {
+		if role == domain.RoleModel {
 			role = "assistant"
 		}
-		messages = append(messages, ChatMessage{Role: role, Content: m.Content})
+		messages = append(messages, chatMessage{Role: role, Content: m.Content})
 	}
 
-	reqBody := ChatCompletionRequest{
-		Model:    c.model,
+	reqBody := chatCompletionRequest{
+		Model:    p.model,
 		Messages: messages,
 	}
 
@@ -56,13 +48,12 @@ func (c *ZhiPuClient) SendMessage(history []Message, systemInstruction string) (
 		return "", fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	// 2. 发送 HTTP 请求
 	req, err := http.NewRequest("POST", "https://open.bigmodel.cn/api/paas/v4/chat/completions", bytes.NewReader(bodyBytes))
 	if err != nil {
 		return "", fmt.Errorf("failed to create request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+c.apiKey)
+	req.Header.Set("Authorization", "Bearer "+p.apiKey)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -70,7 +61,6 @@ func (c *ZhiPuClient) SendMessage(history []Message, systemInstruction string) (
 	}
 	defer resp.Body.Close()
 
-	// 3. 读取 & 解析响应
 	respBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", fmt.Errorf("failed to read response: %w", err)
@@ -80,7 +70,7 @@ func (c *ZhiPuClient) SendMessage(history []Message, systemInstruction string) (
 		return "", fmt.Errorf("ZhiPu API error %d: %s", resp.StatusCode, string(respBytes))
 	}
 
-	var data ChatCompletionResponse
+	var data chatCompletionResponse
 	if err := json.Unmarshal(respBytes, &data); err != nil {
 		return "", fmt.Errorf("failed to unmarshal response: %w", err)
 	}
